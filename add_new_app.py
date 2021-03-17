@@ -5,11 +5,18 @@ import sys
 import re
 import copy
 
-appname = 'Mqtt'
-app_proto = 'raw'
+appname = 'GoogleMaps'
+app_proto = 'http'
 sample_action = None
 sample_transaction = None
 
+'''
+First transaction is taken as a sample transaction and all other transactions are removed. This is good
+How many places we need to a transaction:
+    1. Transaction name in the group of transactions
+    2. Transaction parameters ===>  This is the thing that may need some manual work, and it is where all the  transaction details are defined
+    3. Transaction definition for each transaction in the if /allof place
+'''
 def apply_topic_substitution(self, payl, params):
     stopic = params.get("topic", None)
     stlen = len(stopic)
@@ -42,6 +49,8 @@ sample_transaction['items'] = []
 j['metadata']["scenario"]['items'] = [] #remove all transactions
 j['metadata']["schema"]['definitions']['transaction.name']['enum'] = []
 
+j['name'] = appname
+j['metadata']["scenario"]['applicationn'] = appname
 trans_params_regex = re.compile('transaction\.[\w]*\.parameters')
 
 #tparams = None
@@ -68,7 +77,14 @@ def delete_transaction_param_details(tnames):
         j['metadata']["schema"]['definitions']['transaction.'+ tname.lower()+'.parameters'] = tparams 
            
 
+def check_and_delete_transaction_names():
+    if len(j['metadata']["schema"]['definitions']['transaction.name']['enum']) > 0:
+        j['metadata']["schema"]['definitions']['transaction.name']['enum'] = []
+    assert  len(j['metadata']["schema"]['definitions']['transaction.name']['enum']) == 0
+
+
 def application_transaction_details(tr_names):
+    #j['metadata']["schema"]['definitions']['transaction.name']['enum'].append(trname)
     o = j['metadata']["schema"]['definitions']['application.transaction']['allOf'][0]
     #print (o['if']['properties']['transaction']['const'])
     #print (o['then']['properties']['transactionParameters']['$ref'])
@@ -88,7 +104,7 @@ def add_transaction(trname, actions):
     new_transaction['application'] = appname
     new_transaction['items'] = []
     new_transaction['description'] = appname + " " + trname
-    new_transaction['server'] = ['Mqtt Server']
+    new_transaction['server'] = ['Google Map Server']
     sdict = set()
     for act in actions:
         new_action = copy.deepcopy( sample_action)
@@ -96,8 +112,8 @@ def add_transaction(trname, actions):
         new_action['description'] = appname.lower() + ' ' + act['action_name']
         new_action['payload']['name']  = act['payload_name']
         new_action['mslProperties']['fileid']  = act['payload_name']
-        new_action['protocol']  = 'raw'
-        new_action['server'] = 'Mqtt Server'
+        new_action['protocol']  = app_proto
+        new_action['server'] = 'Google Map Server'
         new_transaction['items'].append(new_action)
     j['metadata']["scenario"]['items'].append( new_transaction )
 
@@ -107,8 +123,33 @@ def add_mqtt_specific_transactions():
     add_transaction( 'Publish', [{'action_name':'publishRequest','payload_name':'mqtt.publishMessage.payload'}] )
     add_transaction( 'Ping' ,     [{'action_name':'pingRequest','payload_name':'mqtt.pingRequest.payload'}, {'action_name':'pingResponse','payload_name':'mqtt.pingResponse.payload'}] )
 
-tr_names = ['Connect', 'Subscribe', 'Publish', 'Ping']
+def add_googlemaps_homepage_data_transaction():
+    actions = []
+    for i in range(1,75):
+        req = f'googlemaps.homepage.data.req_{i}.payload'
+        req_action = f'googleMapsHomePage_Data{i} Request'
+
+        resp = f'googlemaps.homepage.data.resp_{i}.payload'
+        resp_action = f'googleMapsHomePage_Data{i} Response'
+        actions.append( {'action_name': req_action,'payload_name':req})
+        actions.append( {'action_name': resp_action,'payload_name':resp})
+    add_transaction( 'GoogleMapsHomePageData' , actions)
+
+def add_googlemaps_homepage_transaction():
+    actions = []
+    for i in range(1,5):
+        req = f'googlemaps.homepage.request{i}.payload'
+        req_action = f'googleMapsHomePage{i} Request'
+        resp = f'googlemaps.homepage.response{i}.payload'
+        resp_action = f'googleMapsHomePage{i} Response'
+        actions.append( {'action_name': req_action,'payload_name':req})
+        actions.append( {'action_name': resp_action,'payload_name':resp})
+    add_transaction( 'GoogleMapsHomePage' , actions)
+        
+tr_names = ['GoogleMapsHomePage']
 application_transaction_details(tr_names)
-add_mqtt_specific_transactions()
+#add_mqtt_specific_transactions()
+add_googlemaps_homepage_transaction()
+add_googlemaps_homepage_data_transaction()
 delete_transaction_param_details( tr_names)
 write_json( j, dest )
